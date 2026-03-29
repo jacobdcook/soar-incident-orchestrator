@@ -4,7 +4,7 @@
 A lightweight Security Orchestration, Automation, and Response (SOAR) platform designed to bridge the gap between detection and action. It ingests alerts from SIEMs via webhooks and executes automated playbooks to mitigate threats in real-time.
 
 ## Why This Project?
-This project demonstrates the transition from **SOC Analyst** (detecting threats) to **Security Engineer** (automating responses). It showcases:
+This project demonstrates the move from **manual security operations steps** (classify, enrich, notify, document) to **automated detection response** with playbooks. It showcases:
 - Integration with enterprise security tools (SIEMs, Azure AD, Slack)
 - Automation of incident response workflows
 - Full-stack development skills (Python/FastAPI backend, React frontend)
@@ -18,7 +18,7 @@ This project demonstrates the transition from **SOC Analyst** (detecting threats
   - Azure AD (Graph API) for account disabling (mocked for demo)
   - Mock Firewall for IP blocking
 - **Incident Dashboard**: Real-time React dashboard to monitor and manage security incidents
-- **Manual Override**: Security analysts can manually resolve or dismiss incidents
+- **Manual Override**: Operators can manually resolve or dismiss incidents
 
 ## Reproducible Verification
 
@@ -28,7 +28,7 @@ Every automation claim is backed by `tests/test_orchestrator.py`. Run `pytest te
 |---|---|
 | Alerts auto-ingest without manual intervention | POST to `/webhooks/alerts` returns 202, incident created in-memory |
 | Playbooks execute automatically on matching alert types | Brute force and auth failure alerts trigger IP block + notification without human input |
-| 4 manual SOC steps eliminated | Each tested individually: (1) alert classification, (2) IOC enrichment, (3) notification/escalation, (4) ticket/documentation creation |
+| Four manual security operations steps eliminated | Each tested individually: (1) alert classification, (2) IOC enrichment, (3) notification/escalation, (4) ticket/documentation creation |
 | Automated pipeline is faster than manual workflow | Simulated manual workflow (8.5s across 4 steps) vs automated pipeline (<0.01s) — ≥60% reduction asserted |
 | Slack notification path is invoked | Mock verifies `send_slack_notification` is called during playbook execution |
 
@@ -151,7 +151,7 @@ The system successfully handled multiple concurrent security events, properly ca
 *Multiple Incidents - Dashboard handling concurrent security events*
 
 ### 6. Manual Resolution
-Security analysts can manually review and resolve incidents, demonstrating the balance between automation and human oversight.
+Operators can manually review and resolve incidents, demonstrating the balance between automation and human oversight.
 
 ![Manual Resolution](screenshots/06-manual-resolution.png)
 *Manual Resolution - Analyst override capability demonstrated*

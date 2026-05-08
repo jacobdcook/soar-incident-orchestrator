@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from typing import Any, Dict, List
 import uuid
 import logging
 from datetime import datetime
 
-from models import Alert, Incident, IncidentStatus, Severity
+from models import Alert, Incident, IncidentStatus
+from chronicle_udm import parse_chronicle_webhook
 from playbooks.brute_force import run_brute_force_playbook
 from config import settings
 
@@ -47,25 +48,30 @@ async def process_alert(alert: Alert, incident_id: str):
             logger.info(f"Updated incident {incident_id} with actions: {actions_taken}")
             break
 
+def _enqueue_incident(alert: Alert, background_tasks: BackgroundTasks) -> dict:
+    incident_id = str(uuid.uuid4())
+    new_incident = Incident(
+        id=incident_id,
+        alert=alert,
+        status=IncidentStatus.NEW,
+        created_at=datetime.utcnow(),
+    )
+    incidents.append(new_incident)
+    background_tasks.add_task(process_alert, alert, incident_id)
+    return {"incident_id": incident_id, "status": "accepted"}
+
 @app.get("/")
 async def root():
     return {"message": "SOAR-lite Orchestrator is running"}
 
 @app.post("/webhooks/alerts", status_code=202)
 async def receive_alert(alert: Alert, background_tasks: BackgroundTasks):
-    incident_id = str(uuid.uuid4())
-    new_incident = Incident(
-        id=incident_id,
-        alert=alert,
-        status=IncidentStatus.NEW,
-        created_at=datetime.utcnow()
-    )
-    incidents.append(new_incident)
-    
-    # Process the alert in the background
-    background_tasks.add_task(process_alert, alert, incident_id)
-    
-    return {"incident_id": incident_id, "status": "accepted"}
+    return _enqueue_incident(alert, background_tasks)
+
+@app.post("/webhooks/alerts/chronicle", status_code=202)
+async def receive_chronicle_alert(background_tasks: BackgroundTasks, body: Dict[str, Any]):
+    alert = parse_chronicle_webhook(body)
+    return _enqueue_incident(alert, background_tasks)
 
 @app.get("/incidents", response_model=List[Incident])
 async def get_incidents():

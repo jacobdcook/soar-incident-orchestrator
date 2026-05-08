@@ -1,0 +1,51 @@
+{
+  "metadata": {
+    "eventTimestamp": "2025-11-07T03:41:52.834Z",
+    "ingestionTimestamp": "2025-11-07T03:42:05.117Z",
+    "eventType": "USER_LOGIN",
+    "vendorName": "OKTA",
+    "productName": "OKTA_SSO",
+    "logType": "OKTA_SYSTEM_LOG",
+    "namespace_name": "corp-secops-prod"
+  },
+  "principal": {
+    "hostname": "wk-sin-8842-corp",
+    "ip": ["203.0.113.91"],
+    "user": {
+      "userid": "jsmith@mega-corp.example.com",
+      "title": "Sales Operations"
+    },
+    "location": {
+      "state": "LU",
+      "countryOrRegion": "PL",
+      "city": "Lublin"
+    }
+  },
+  "network": {
+    "applicationProtocol": "HTTPS",
+    "direction": "OUTBOUND",
+    "dnsDomain": "mega-corp.okta.com",
+    "emailSubject": null,
+    "ipProtocol": "TCP",
+    "sourceIp": "203.0.113.91",
+    "destinationIp": "198.51.100.54",
+    "destinationPort": 443
+  },
+  "target": {
+    "application": "Okta Admin Console VPN broker",
+    "url": "https://mega-corp.okta.com/api/v1/authn",
+    "ip": ["198.51.100.54"]
+  },
+  "securityResult": [
+    {
+      "action": ["ALLOW"],
+      "category": "CREDENTIAL_ACCESS",
+      "priority": "HIGH",
+      "ruleName": "CORP-CHRON-SIGMA-VPN-Okta-Bruteforce-Cluster",
+      "severity": "HIGH",
+      "summary": "Suspected brute force against Okta SSO: 847 failed password attempts originating from 203.0.113.91 targeting jsmith@mega-corp.example.com within 240 seconds; correlates with impossible-travel markers and new device fingerprint.",
+      "detectionOutcome": "SUSPICIOUS",
+      "threatId": "de_7f91c42b-ac10-4eaf-9dbd-2ccf6b6c2b11"
+    }
+  ]
+}

@@ -4,21 +4,21 @@
 A lightweight Security Orchestration, Automation, and Response (SOAR) platform designed to bridge the gap between detection and action. It ingests alerts from SIEMs via webhooks and executes automated playbooks to mitigate threats in real-time.
 
 ## Why This Project?
-This project demonstrates the move from **manual security operations steps** (classify, enrich, notify, document) to **automated detection response** with playbooks. It showcases:
+This project demonstrates the transition from **SOC Analyst** (detecting threats) to **Security Engineer** (automating responses). It showcases:
 - Integration with enterprise security tools (SIEMs, Azure AD, Slack)
 - Automation of incident response workflows
 - Full-stack development skills (Python/FastAPI backend, React frontend)
 - Containerization and DevOps practices
 
 ## Features
-- **Webhook Ingestion**: RESTful API endpoint to receive alerts from Wazuh, Splunk, or other SIEMs
+- **Webhook Ingestion**: RESTful API endpoints to receive alerts from Wazuh, Splunk, Google Chronicle SecOps (UDM forwarded as JSON), or other SIEMs
 - **Automated Playbooks**: Rule-based logic that triggers specific actions based on threat type
 - **Integrations**: 
   - Slack/Discord for team notifications
   - Azure AD (Graph API) for account disabling (mocked for demo)
   - Mock Firewall for IP blocking
 - **Incident Dashboard**: Real-time React dashboard to monitor and manage security incidents
-- **Manual Override**: Operators can manually resolve or dismiss incidents
+- **Manual Override**: Security analysts can manually resolve or dismiss incidents
 
 ## Reproducible Verification
 
@@ -27,12 +27,13 @@ Every automation claim is backed by `tests/test_orchestrator.py`. Run `pytest te
 | What the test proves | How |
 |---|---|
 | Alerts auto-ingest without manual intervention | POST to `/webhooks/alerts` returns 202, incident created in-memory |
+| Chronicle UDM ingest | POST to `/webhooks/alerts/chronicle` with UDM-shaped JSON (see `samples/chronicle_udm_vpn_bruteforce.json`) returns 202; playbook runs when summary maps to auth/brute-force style events |
 | Playbooks execute automatically on matching alert types | Brute force and auth failure alerts trigger IP block + notification without human input |
-| Four manual security operations steps eliminated | Each tested individually: (1) alert classification, (2) IOC enrichment, (3) notification/escalation, (4) ticket/documentation creation |
+| 4 manual SOC steps eliminated | Each tested individually: (1) alert classification, (2) IOC enrichment, (3) notification/escalation, (4) ticket/documentation creation |
 | Automated pipeline is faster than manual workflow | Simulated manual workflow (8.5s across 4 steps) vs automated pipeline (<0.01s) — ≥60% reduction asserted |
 | Slack notification path is invoked | Mock verifies `send_slack_notification` is called during playbook execution |
 
-**10 tests, 0 failures.**
+**13 tests, 0 failures.**
 
 The tests exercise the real FastAPI app via `httpx.AsyncClient` (ASGI transport) — not mocked endpoints. Playbook logic, incident state transitions, and webhook ingestion all run against the actual application code.
 
@@ -47,11 +48,13 @@ The tests exercise the real FastAPI app via `httpx.AsyncClient` (ASGI transport)
 soar-incident-orchestrator/
 ├── backend/              # FastAPI application
 │   ├── playbooks/        # Automated response logic
+│   ├── chronicle_udm.py  # Chronicle SecOps UDM → internal Alert mapping
 │   ├── main.py          # API endpoints
 │   └── models.py        # Data schemas
 ├── frontend/            # React dashboard
 │   └── src/
 │       └── App.jsx      # Main dashboard component
+├── samples/             # Example SIEM payloads (UDM JSON for Chronicle)
 ├── scripts/             # Testing utilities
 │   └── send_test_alert.py
 ├── screenshots/         # Project documentation images
@@ -118,6 +121,18 @@ python3 scripts/send_test_alert.py 1  # Suspicious Login
 python3 scripts/send_test_alert.py 2  # Malware C2 Communication
 ```
 
+### Google Chronicle SecOps (UDM webhook)
+
+Point Chronicle forwarding (or SecOps webhook automation) at `POST /webhooks/alerts/chronicle` with a JSON body in UDM shape (`metadata`, `principal`, optional `network` / `target`, and `securityResult` / `security_result`). The orchestrator maps fields into the same internal `Alert` schema used by Wazuh/Splunk and existing playbooks.
+
+```bash
+curl -sS -X POST http://localhost:8000/webhooks/alerts/chronicle \
+  -H "Content-Type: application/json" \
+  -d @samples/chronicle_udm_vpn_bruteforce.json
+```
+
+Batch-style envelopes such as `{ "records": [ { ...udm... } ] }` or a top-level JSON array unwrap to the first UDM record.
+
 ## Lab Execution & Evidence
 
 ### 1. Infrastructure Setup
@@ -151,7 +166,7 @@ The system successfully handled multiple concurrent security events, properly ca
 *Multiple Incidents - Dashboard handling concurrent security events*
 
 ### 6. Manual Resolution
-Operators can manually review and resolve incidents, demonstrating the balance between automation and human oversight.
+Security analysts can manually review and resolve incidents, demonstrating the balance between automation and human oversight.
 
 ![Manual Resolution](screenshots/06-manual-resolution.png)
 *Manual Resolution - Analyst override capability demonstrated*
@@ -166,11 +181,10 @@ FastAPI automatically generates interactive API documentation, making it easy fo
 
 ### How It Works
 
-1. **Alert Ingestion** (`POST /webhooks/alerts`):
-   - Receives JSON alert payload from SIEM
-   - Validates using Pydantic models
-   - Creates incident record
-   - Returns 202 Accepted (async processing)
+1. **Alert Ingestion**:
+   - `POST /webhooks/alerts`: native SOAR alert JSON (Pydantic `Alert` model)
+   - `POST /webhooks/alerts/chronicle`: Chronicle / SecOps UDM JSON; normalized to `Alert` then processed the same way
+   - Creates incident record and returns 202 Accepted (async processing)
 
 2. **Background Processing**:
    - FastAPI BackgroundTasks processes the alert
@@ -228,6 +242,8 @@ This demonstrates the ability to:
 ## Files & Tools
 
 - `backend/main.py`: FastAPI application with webhook and incident endpoints
+- `backend/chronicle_udm.py`: Chronicle UDM ingest parser and normalization
+- `samples/chronicle_udm_vpn_bruteforce.json`: Example SecOps-style UDM for manual or curl testing
 - `backend/playbooks/brute_force.py`: Automated response logic for brute force attacks
 - `frontend/src/App.jsx`: React dashboard component
 - `scripts/send_test_alert.py`: Utility to simulate security alerts

@@ -269,7 +269,6 @@ ALERT_TYPES_WITH_PLAYBOOKS = ["Brute Force Attack", "Authentication Failure"]
 
 @pytest.mark.anyio
 async def test_soar_metrics_summary(capsys):
-    """Print the SOAR METRICS summary block."""
     alert = Alert(
         source="Wazuh",
         event_type="Brute Force Attack",
@@ -311,3 +310,51 @@ async def test_soar_metrics_summary(capsys):
 
     assert reduction_pct >= 60
     assert len(MANUAL_STEPS_ELIMINATED) == 4
+
+
+@pytest.mark.anyio
+async def test_chronicle_udm_webhook_ingests_from_sample_file():
+    import json
+    from pathlib import Path
+
+    sample = Path(__file__).resolve().parent.parent / "samples" / "chronicle_udm_vpn_bruteforce.json"
+    payload = json.loads(sample.read_text(encoding="utf-8"))
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.post("/webhooks/alerts/chronicle", json=payload)
+    assert resp.status_code == 202
+    assert len(incidents) == 1
+    inc = incidents[0]
+    assert inc.alert.source_ip == "203.0.113.91"
+    assert inc.alert.user_id == "jsmith@mega-corp.example.com"
+    assert "authentication failure" in inc.alert.event_type.lower()
+    assert "brute" in inc.alert.description.lower()
+
+
+@pytest.mark.anyio
+async def test_chronicle_playbook_runs_for_bruteforce_summary():
+    import json
+    from pathlib import Path
+    from models import Incident, IncidentStatus
+    from datetime import datetime
+
+    from chronicle_udm import chronicle_udm_to_alert
+
+    sample = Path(__file__).resolve().parent.parent / "samples" / "chronicle_udm_vpn_bruteforce.json"
+    payload = json.loads(sample.read_text(encoding="utf-8"))
+    alert = chronicle_udm_to_alert(payload)
+    incident_id = "test-chronicle-bf-001"
+    incidents.append(
+        Incident(id=incident_id, alert=alert, status=IncidentStatus.NEW, created_at=datetime.utcnow())
+    )
+    await process_alert(alert, incident_id)
+    inc = next(i for i in incidents if i.id == incident_id)
+    assert "Blocked IP 203.0.113.91" in (inc.automated_action_taken or "")
+
+
+@pytest.mark.anyio
+async def test_chronicle_invalid_payload_rejected():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.post("/webhooks/alerts/chronicle", json={})
+    assert resp.status_code == 422
